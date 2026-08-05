@@ -1,0 +1,16 @@
+name: channel_dart
+description: Dart port of channel with client/server/process transports and TS interop tests.
+version: 1.0.0
+# repository: https://github.com/my_org/my_repo
+
+environment:
+  sdk: ^3.11.0
+
+# Add regular dependencies here.
+dependencies:
+  fast_json: ^0.1.12
+  # path: ^1.9.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

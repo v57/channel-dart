@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+dart pub get
+dart test --coverage=coverage
+
+dart pub global run coverage:format_coverage \
+  --lcov \
+  --in=coverage \
+  --out=coverage/lcov.info \
+  --packages=.dart_tool/package_config.json \
+  --report-on=lib
+
+if [[ ! -s coverage/lcov.info ]]; then
+  echo "coverage/lcov.info was not created or is empty" >&2
+  exit 1
+fi
