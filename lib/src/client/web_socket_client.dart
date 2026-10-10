@@ -25,6 +25,10 @@ class WebSocketClient implements ConnectionInterface {
   void Function()? onClose;
   void Function(dynamic message)? onMessage;
 
+  /// Called when the server sends a reply this client can't decode. Pending calls can't be matched to their
+  /// reply any more, so the owner should settle them with this error instead of letting them wait forever.
+  void Function(String error)? onProtocolError;
+
   final Map<int, Object?> pending = <int, Object?>{};
 
   int _id = 0;
@@ -66,30 +70,55 @@ class WebSocketClient implements ConnectionInterface {
         _write(pending.values.toList(growable: false));
       }
 
-      void handleDisconnected([Object? _]) {
+      void handleDisconnected([Object? error]) {
+        if (error != null && error is! SocketException) {
+          // Protocol violation from the peer (invalid UTF-8, bad frame...): the pending calls would be
+          // resent into the same failure forever.
+          _reportProtocolError('invalid message from server');
+        }
         _handleDisconnected();
       }
 
       socket.listen(
         (dynamic message) {
-          if (message is String) {
-            onMessage?.call(_jsonEngine.decode(message));
+          dynamic decoded;
+          try {
+            if (message is String) {
+              decoded = _jsonEngine.decode(message);
+            } else if (message is List<int>) {
+              decoded = _jsonEngine.decode(utf8.decode(message));
+            } else {
+              return;
+            }
+          } catch (_) {
+            // One malformed reply must not kill the process (AUDIT2 §1.7), nor strand the pending calls.
+            _reportProtocolError('invalid message from server');
             return;
           }
-
-          if (message is List<int>) {
-            final decoded = utf8.decode(message);
-            onMessage?.call(_jsonEngine.decode(decoded));
+          try {
+            onMessage?.call(decoded);
+          } catch (_) {
+            // Errors thrown by response/event callbacks stay local to that message.
           }
         },
         onError: handleDisconnected,
         onDone: handleDisconnected,
         cancelOnError: true,
       );
-    } catch (_) {
+    } catch (error) {
       _isStarting = false;
+      if (error is WebSocketException) {
+        // The server answered but refused the upgrade (e.g. HTTP 500): fail queued calls, keep retrying.
+        _reportProtocolError('connection rejected by server');
+      }
       _scheduleReconnect();
     }
+  }
+
+  void _reportProtocolError(String error) {
+    try {
+      onProtocolError?.call(error);
+    } catch (_) {}
   }
 
   void _handleDisconnected() {
@@ -222,6 +251,9 @@ class WebSocketClient implements ConnectionInterface {
 
   @override
   void stop() {
+    if (!isRunning) {
+      return;
+    }
     isRunning = false;
     pending.clear();
     _reconnectTimer?.cancel();
@@ -229,5 +261,7 @@ class WebSocketClient implements ConnectionInterface {
     unawaited(_ws?.close());
     _ws = null;
     isConnected = false;
+    // The socket's onDone is ignored once `_ws` is cleared, so report the close here (TS: stop -> onclose).
+    onClose?.call();
   }
 }

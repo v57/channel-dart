@@ -3,6 +3,7 @@ import 'dart:io';
 
 import '../core/channel_core.dart';
 import '../json/json_engine.dart';
+import 'frame_limit.dart';
 
 class BodyContext<State> {
   BodyContext({
@@ -22,12 +23,17 @@ class ListenOptions<State> {
     this.onConnect,
     this.onDisconnect,
     this.jsonEngine,
+    this.maxMessageSize = defaultMaxMessageSize,
   });
 
   final FutureOr<State> Function(Map<String, String> headers)? state;
   final void Function(BodyContext<State> connection)? onConnect;
   final void Function(BodyContext<State> connection)? onDisconnect;
   final JsonEngine? jsonEngine;
+
+  /// Largest incoming message (all fragments together) in bytes; bigger ones close the
+  /// connection with 1009. Default 16 MiB, like TS/Bun.
+  final int maxMessageSize;
 }
 
 class Subscriptions {
@@ -166,7 +172,10 @@ extension ChannelServerExtension<State> on Channel<State> {
 
         WebSocket socket;
         try {
-          socket = await WebSocketTransformer.upgrade(request);
+          socket = await upgradeWithFrameLimit(
+            request,
+            maxMessageSize: listenOptions.maxMessageSize,
+          );
         } catch (_) {
           return;
         }

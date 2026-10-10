@@ -158,7 +158,13 @@ extension ChannelClient<State> on Channel<State> {
       if (!ws.isRunning) {
         cleanupPublishers();
       }
-      disconnect(state, sender);
+      // While reconnecting, `ws.pending` resends unanswered calls: keep them registered so the replies
+      // still resolve them (TS drops them here, which strands every resent call).
+      disconnect(state, sender, keepPending: ws.isRunning);
+    };
+
+    ws.onProtocolError = (String error) {
+      failPending(sender, error);
     };
 
     ws.onMessage = (dynamic message) {

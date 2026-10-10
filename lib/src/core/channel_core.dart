@@ -223,7 +223,7 @@ class ChannelSender<State> implements Sender<State> {
           }
         }
         if (sentId != null) {
-          final requestSentId = sentId!;
+          final requestSentId = sentId;
           _connection.sent(requestSentId);
         }
       },
@@ -442,6 +442,7 @@ class ChannelSender<State> implements Sender<State> {
   @override
   void stop() {
     _connection.stop();
+    _channel.failPending(this, 'disconnected');
   }
 }
 
@@ -591,11 +592,12 @@ class Subscription {
       return;
     }
 
-    publish(topicValue as String, bodyValue);
+    publish(topicValue, bodyValue);
   }
 
   void publish(String topic, [Object? body]) {
-    if (body == null) {
+    // TS parity: `if (!body) return` drops every falsy body (null, false, 0, NaN, '').
+    if (isFalsy(body)) {
       return;
     }
     final fullTopic = prefix.isEmpty
@@ -606,6 +608,15 @@ class Subscription {
       publisher.publish(event);
     }
   }
+}
+
+/// JavaScript truthiness of a channel body.
+bool isFalsy(Object? value) {
+  if (value == null) return true;
+  if (value is bool) return !value;
+  if (value is num) return value == 0 || value.isNaN;
+  if (value is String) return value.isEmpty;
+  return false;
 }
 
 class ApiPost<State> {
@@ -628,8 +639,7 @@ ApiStream<State> apiStream<State>(ChannelStreamHandler<State> handler) =>
 class Channel<State> {
   int _id = 0;
 
-  void Function(String topic, Object? body) publish =
-      (String _topic, Object? _body) {};
+  void Function(String topic, Object? body) publish = (String _, Object? _) {};
 
   final Map<int, _PendingRequest<State>> requests =
       <int, _PendingRequest<State>>{};
@@ -679,7 +689,14 @@ class Channel<State> {
     return this;
   }
 
-  void disconnect(State state, Sender<State> sender) {
+  /// Runs the disconnect hook, stops incoming streams/tasks of [sender] and settles its outgoing calls
+  /// with a `disconnected` error. A reconnecting client passes [keepPending] so its outgoing calls stay
+  /// registered and are matched when the transport resends them after reconnecting.
+  void disconnect(
+    State state,
+    Sender<State> sender, {
+    bool keepPending = false,
+  }) {
     try {
       _onDisconnect?.call(state, sender);
     } catch (_) {}
@@ -694,18 +711,32 @@ class Channel<State> {
       request.cancelSilently();
     }
 
-    final toDelete = <int>[];
-    requests.forEach((int key, _PendingRequest<State> request) {
-      if (identical(request.request.sender, sender)) {
-        toDelete.add(key);
-      }
-    });
-    for (final id in toDelete) {
-      requests.remove(id);
+    // Outgoing calls of this sender can't be answered any more: settle them instead of leaving them hanging.
+    if (!keepPending) {
+      failPending(sender, 'disconnected');
     }
 
     sender.streams.clear();
     sender.requests.clear();
+  }
+
+  /// Settles every outgoing request, stream and subscription made through [sender] with [error].
+  /// Used when the transport closes or receives a reply it can't decode, so no caller waits forever.
+  void failPending(Sender<State> sender, Object error) {
+    final failed = <int, _PendingRequest<State>>{};
+    requests.forEach((int key, _PendingRequest<State> request) {
+      if (identical(request.request.sender, sender)) {
+        failed[key] = request;
+      }
+    });
+    for (final id in failed.keys) {
+      requests.remove(id);
+    }
+    failed.forEach((int id, _PendingRequest<State> request) {
+      try {
+        request.response(<String, Object?>{'id': id, 'error': error});
+      } catch (_) {}
+    });
   }
 
   ChannelRequest makeRequest(
@@ -994,7 +1025,7 @@ class Channel<State> {
           return;
         }
 
-        final topic = rawTopic as String;
+        final topic = rawTopic;
         final body = rawBody;
         final fullTopic = _joinTopic(subscription.prefix, topic);
         controller.subscribe(fullTopic);
@@ -1024,7 +1055,8 @@ class Channel<State> {
         requests.remove(id);
         request?.response(some);
       }
-      if (some.containsKey('body')) {
+      // TS parity: `if (some.body)` - falsy event bodies are not delivered.
+      if (!isFalsy(some['body'])) {
         controller.event(topic, some['body']);
       }
       return;

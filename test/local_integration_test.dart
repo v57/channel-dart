@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:channel_dart/channel.dart';
 import 'package:channel_dart/client.dart';
 import 'package:channel_dart/server.dart';
 import 'package:test/test.dart';
@@ -71,7 +70,7 @@ void main() {
       expect(values, <int>[0, 1, 2]);
     });
 
-    test('subscription receives falsey body and supports cancel', () async {
+    test('subscription drops falsy body and supports cancel', () async {
       final firstEvent = Completer<Object?>();
       var receivedAfterCancel = false;
 
@@ -87,8 +86,9 @@ void main() {
         },
       );
 
-      updates.send('u1', 0);
-      expect(await firstEvent.future.timeout(const Duration(seconds: 2)), 0);
+      updates.send('u1', 0); // falsy: dropped like TS `if (!body) return`
+      updates.send('u1', 7);
+      expect(await firstEvent.future.timeout(const Duration(seconds: 2)), 7);
 
       subscription.cancel();
       await sleep(0.01);

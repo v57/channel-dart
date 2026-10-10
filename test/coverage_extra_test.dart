@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:channel_dart/channel.dart';
 import 'package:channel_dart/client.dart';
 import 'package:channel_dart/process.dart';
 import 'package:channel_dart/server.dart';
@@ -133,7 +132,7 @@ ChannelController<Object?> loopbackController(Sender<Object?> sender) {
     response: (_) {},
     subscribe: (_) {},
     unsubscribe: (_) {},
-    event: (_, __) {},
+    event: (_, _) {},
     sender: sender,
     state: null,
   );
@@ -197,7 +196,7 @@ void main() {
         response: responses.add,
         subscribe: (_) {},
         unsubscribe: (_) {},
-        event: (_, __) {},
+        event: (_, _) {},
         sender: sender,
         state: <String, Object?>{},
       );
@@ -253,7 +252,7 @@ void main() {
           response: responses.add,
           subscribe: (_) {},
           unsubscribe: (_) {},
-          event: (_, __) {},
+          event: (_, _) {},
           sender: sender,
           state: <String, Object?>{},
         );
@@ -292,7 +291,7 @@ void main() {
           response: (_) {},
           subscribe: (_) {},
           unsubscribe: (_) {},
-          event: (_, __) {},
+          event: (_, _) {},
           sender: sender,
           state: null,
         ),

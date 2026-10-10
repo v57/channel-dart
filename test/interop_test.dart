@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:channel_dart/client.dart';
-import 'package:channel_dart/channel.dart';
 import 'package:test/test.dart';
 
 import 'support/ts_server_fixture.dart';

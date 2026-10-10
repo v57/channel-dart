@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:channel_dart/channel.dart';
 import 'package:channel_dart/process.dart';
 
 void emit(Map<String, Object?> payload) {
@@ -105,7 +104,7 @@ Future<void> main() async {
   }
 
   final sync = await runScenario(sender, 'sync', durationMs!, () => stop);
-  final async = await runScenario(sender, 'async', durationMs!, () => stop);
+  final async = await runScenario(sender, 'async', durationMs, () => stop);
   sender.stop();
 
   emit(<String, Object?>{

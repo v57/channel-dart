@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import '../core/channel_core.dart';
 
 extension ChannelProcess<State> on Channel<State> {
@@ -16,7 +14,7 @@ extension ChannelProcess<State> on Channel<State> {
       },
       subscribe: ignoreTopic,
       unsubscribe: ignoreTopic,
-      event: (String _, Object? __) {},
+      event: (String _, Object? _) {},
       sender: sender,
       state: resolvedState,
     );

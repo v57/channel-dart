@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:channel_dart/channel.dart';
 import 'package:channel_dart/process.dart';
 import 'package:channel_dart/server.dart';
 import 'package:test/test.dart';
@@ -146,7 +145,7 @@ _ConnectionPack createConnection([
     notify: (Object? body) {
       pack.notifyBodies.add(body);
     },
-    addTopic: (String _, EventBody __) {
+    addTopic: (String _, EventBody _) {
       return () => true;
     },
     stop: () {},
@@ -261,7 +260,7 @@ void main() {
   test('Channel.disconnect runs cleanup callbacks and clears pending maps', () {
     var disconnected = 0;
     final channel = Channel<Map<String, Object?>>()
-      ..onDisconnect((Map<String, Object?> _, Sender<Map<String, Object?>> __) {
+      ..onDisconnect((Map<String, Object?> _, Sender<Map<String, Object?>> _) {
         disconnected += 1;
         throw StateError('ignored');
       });
@@ -524,8 +523,12 @@ void main() {
 
     final sender = channel.process(state: <String, Object?>{});
 
+    final errors = <Object?>[];
     for (var i = 0; i < 10; i += 1) {
-      sender.request<Object?>('wait');
+      sender.request<Object?>('wait').response.catchError((Object e) {
+        errors.add(e);
+        return null;
+      });
     }
 
     await tick();
@@ -537,6 +540,8 @@ void main() {
 
     expect(sender.requests, isEmpty);
     expect(channel.requests, isEmpty);
+    // Stopped calls settle instead of hanging forever.
+    expect(errors, List<Object?>.filled(10, 'disconnected'));
   });
 
   test('listen stop cleans up subscription publishers', () async {
@@ -580,7 +585,7 @@ void main() {
             return false;
           },
           notify: (Object? _) {},
-          addTopic: (String _, EventBody __) =>
+          addTopic: (String _, EventBody _) =>
               () => true,
           stop: () {},
         ),
@@ -624,7 +629,7 @@ void main() {
           sent: (int _) {},
           cancel: (int _) => false,
           notify: (Object? _) {},
-          addTopic: (String _, EventBody __) =>
+          addTopic: (String _, EventBody _) =>
               () => true,
           stop: () {},
         ),
