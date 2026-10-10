@@ -862,6 +862,58 @@ void main() {
     );
   });
 
+  test('Channel.merge keeps postOther/streamOther under the prefix', () async {
+    bool match(String path) => path.startsWith('dyn/');
+    final inner = Channel<Map<String, Object?>>()
+      ..postOther(
+        match,
+        (ChannelBody<Map<String, Object?>> body) => 'post:${body.body}',
+      )
+      ..streamOther((String path) => path == 'feed', (_) async* {
+        yield 1;
+      });
+    final outer = Channel<Map<String, Object?>>()..merge(inner, prefix: 'm');
+
+    expect(outer.otherPostApi.length, 1);
+    expect(outer.otherPostApi[0].path('m/dyn/x'), isTrue);
+    expect(outer.otherPostApi[0].path('dyn/x'), isFalse);
+    expect(outer.otherStreamApi[0].path('m/feed'), isTrue);
+
+    final pack = createController<Map<String, Object?>>(
+      _StubSender<Map<String, Object?>>(),
+      <String, Object?>{},
+    );
+    outer.receiveOne(<String, Object?>{
+      'id': 1,
+      'path': 'm/dyn/x',
+      'body': 'a',
+    }, pack.controller);
+    outer.receiveOne(<String, Object?>{
+      'id': 2,
+      'path': 'dyn/x',
+      'body': 'a',
+    }, pack.controller);
+    await tick();
+
+    expect(
+      pack.responses.any(
+        (Map<String, Object?> r) => r['id'] == 1 && r['body'] == 'post:a',
+      ),
+      isTrue,
+    );
+    expect(
+      pack.responses.any(
+        (Map<String, Object?> r) => r['id'] == 2 && r['body'] == 'post:a',
+      ),
+      isFalse,
+    );
+
+    // Without a prefix the matchers are reused as-is
+    final flat = Channel<Map<String, Object?>>()..merge(inner);
+    expect(flat.otherPostApi[0].path, same(inner.otherPostApi[0].path));
+    expect(flat.otherPostApi[0].path('dyn/x'), isTrue);
+  });
+
   test(
     'Channel.merge combines events, posts and streams with prefix',
     () async {

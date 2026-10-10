@@ -1160,6 +1160,19 @@ class Channel<State> {
     channel.streamApi.forEach((String key, ChannelStreamHandler<State> value) {
       stream('$resolvedPrefix$key', value);
     });
+
+    bool Function(String) scoped(bool Function(String) match) =>
+        resolvedPrefix.isEmpty
+        ? match
+        : (String path) =>
+              path.startsWith(resolvedPrefix) &&
+              match(path.substring(resolvedPrefix.length));
+    for (final route in channel.otherPostApi) {
+      postOther(scoped(route.path), route.request);
+    }
+    for (final route in channel.otherStreamApi) {
+      streamOther(scoped(route.path), route.request);
+    }
     return this;
   }
 
