@@ -10,6 +10,11 @@ Powerful and lightweight communication built for modern language. Dart implement
 dart pub add channel_dart
 ```
 
+# Dependencies
+
+One package: [`fast_json`](https://pub.dev/packages/fast_json), an optional faster JSON decoder (`JsonEngineKind.fast`).
+The default engine uses `dart:convert`, and the WebSocket client and server use `dart:io`.
+
 # Usage
 
 ```dart
