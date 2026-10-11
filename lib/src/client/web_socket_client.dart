@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import '../core/channel_core.dart';
 import '../json/json_engine.dart';
@@ -11,6 +12,7 @@ class WebSocketClient implements ConnectionInterface {
     FutureOr<Map<String, String>> Function()? headers,
     JsonEngine? jsonEngine,
     this.reconnectDelay = const Duration(milliseconds: 100),
+    this.maxReconnectDelay = const Duration(seconds: 5),
   }) : _headers = headers,
        _jsonEngine = jsonEngine ?? const DartJsonEngine() {
     unawaited(start());
@@ -19,7 +21,29 @@ class WebSocketClient implements ConnectionInterface {
   final String address;
   final FutureOr<Map<String, String>> Function()? _headers;
   final JsonEngine _jsonEngine;
+
+  /// First wait before reconnecting; it doubles after each failed attempt up to [maxReconnectDelay].
   final Duration reconnectDelay;
+  final Duration maxReconnectDelay;
+
+  /// Wait before reconnect [attempt] (0 = first retry), scaled to 50-100% by [random] (0..1) so clients
+  /// don't retry in lockstep. Same numbers as the TypeScript client.
+  static Duration reconnectWait(
+    Duration base,
+    Duration max,
+    int attempt,
+    double random,
+  ) {
+    final exponential =
+        base.inMicroseconds * pow(2, attempt < 30 ? attempt : 30);
+    final capped = exponential < max.inMicroseconds
+        ? exponential
+        : max.inMicroseconds;
+    return Duration(microseconds: (capped * (0.5 + random / 2)).round());
+  }
+
+  static final Random _random = Random();
+  int _attempts = 0;
 
   Future<void> Function()? onOpen;
   void Function()? onClose;
@@ -63,6 +87,7 @@ class WebSocketClient implements ConnectionInterface {
       isConnected = true;
       _ws = socket;
       _isStarting = false;
+      _attempts = 0;
 
       await onOpen?.call();
 
@@ -136,7 +161,13 @@ class WebSocketClient implements ConnectionInterface {
       return;
     }
     _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(reconnectDelay, () {
+    final wait = reconnectWait(
+      reconnectDelay,
+      maxReconnectDelay,
+      _attempts++,
+      _random.nextDouble(),
+    );
+    _reconnectTimer = Timer(wait, () {
       unawaited(start());
     });
   }
