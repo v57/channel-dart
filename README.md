@@ -45,6 +45,7 @@ Future<void> main() async {
 - client transport (`lib/client.dart`)
 - server transport (`lib/server.dart`)
 - process/in-memory transport (`lib/process.dart`)
+- no QUIC: Dart has no usable QUIC library. Languages with QUIC: TypeScript, Go, Swift, C#, Rust, Python, Elixir, Java, Kotlin, C and Zig (`channel/docs/quic.md`)
 - generic sender API (`send<T>`, `values<T>`, `subscribe<T>`)
 
 # JSON engines
