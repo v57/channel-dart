@@ -1051,9 +1051,14 @@ class Channel<State> {
       final topic = some['topic'] as String;
       final id = _asInt(some['id']);
       if (id != null) {
+        // A subscription response, only from the connection the subscription went to: ids are one counter for
+        // every connection.
         final request = requests[id];
-        requests.remove(id);
-        request?.response(some);
+        if (request != null &&
+            identical(request.request.sender, controller.sender)) {
+          requests.remove(id);
+          request.response(some);
+        }
       }
       // TS parity: `if (some.body)` - falsy event bodies are not delivered.
       if (!isFalsy(some['body'])) {
@@ -1067,8 +1072,11 @@ class Channel<State> {
       return;
     }
 
+    // A response answers a request only on the connection it went to. Ids are one counter for every connection,
+    // so another peer of a server could otherwise answer calls the server made to someone else.
     final request = requests[id];
-    if (request == null) {
+    if (request == null ||
+        !identical(request.request.sender, controller.sender)) {
       return;
     }
 

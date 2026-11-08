@@ -447,7 +447,8 @@ void main() {
     final request = sender.request<String>('hello');
     final requestId = firstRequestId(channel);
 
-    final pack = createController<Object?>(_StubSender<Object?>(), null);
+    // The response arrives on the connection the request went to
+    final pack = createController<Object?>(sender, null);
     channel.receiveOne(<String, Object?>{
       'id': requestId,
       'body': 'world',
@@ -465,7 +466,8 @@ void main() {
     final request = sender.request<String>('hello');
     final requestId = firstRequestId(channel);
 
-    final pack = createController<Object?>(_StubSender<Object?>(), null);
+    // The response arrives on the connection the request went to
+    final pack = createController<Object?>(sender, null);
     channel.receiveOne(<String, Object?>{
       'id': requestId,
       'error': 'failed',
@@ -670,7 +672,8 @@ void main() {
         );
 
     final requestId = firstRequestId(channel);
-    final pack = createController<Object?>(_StubSender<Object?>(), null);
+    // The response arrives on the connection the request went to
+    final pack = createController<Object?>(sender, null);
     channel.receiveOne(<String, Object?>{
       'id': requestId,
       'error': 'stream failed',
