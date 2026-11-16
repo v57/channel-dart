@@ -6,21 +6,51 @@ import 'dart:math';
 import '../core/channel_core.dart';
 import '../json/json_engine.dart';
 
+/// One open connection of a [WebSocketClient]: a WebSocket, or a QUIC stream
+/// (`package:channel_dart/quic.dart`).
+class ClientLink {
+  const ClientLink({
+    required this.messages,
+    required this.add,
+    required this.close,
+  });
+
+  /// Incoming text messages. An error other than a [SocketException] means the peer broke the protocol.
+  final Stream<dynamic> messages;
+  final void Function(String text) add;
+  final Future<void> Function() close;
+}
+
+/// Opens one connection to [address] with the handshake [headers].
+typedef ClientDialer =
+    Future<ClientLink> Function(String address, Map<String, String>? headers);
+
+Future<ClientLink> _dialWebSocket(
+  String address,
+  Map<String, String>? headers,
+) async {
+  final socket = await WebSocket.connect(address, headers: headers);
+  return ClientLink(messages: socket, add: socket.add, close: socket.close);
+}
+
 class WebSocketClient implements ConnectionInterface {
   WebSocketClient(
     this.address, {
     FutureOr<Map<String, String>> Function()? headers,
     JsonEngine? jsonEngine,
+    ClientDialer? dialer,
     this.reconnectDelay = const Duration(milliseconds: 100),
     this.maxReconnectDelay = const Duration(seconds: 5),
   }) : _headers = headers,
-       _jsonEngine = jsonEngine ?? const DartJsonEngine() {
+       _jsonEngine = jsonEngine ?? const DartJsonEngine(),
+       _dial = dialer ?? _dialWebSocket {
     unawaited(start());
   }
 
   final String address;
   final FutureOr<Map<String, String>> Function()? _headers;
   final JsonEngine _jsonEngine;
+  final ClientDialer _dial;
 
   /// First wait before reconnecting; it doubles after each failed attempt up to [maxReconnectDelay].
   final Duration reconnectDelay;
@@ -60,7 +90,7 @@ class WebSocketClient implements ConnectionInterface {
   int _isWaitingLength = 0;
   final List<Object?> _queue = <Object?>[];
 
-  WebSocket? _ws;
+  ClientLink? _ws;
   Timer? _reconnectTimer;
   bool _isStarting = false;
   bool isConnected = false;
@@ -78,7 +108,7 @@ class WebSocketClient implements ConnectionInterface {
 
     try {
       final headers = await _headers?.call();
-      final socket = await WebSocket.connect(address, headers: headers);
+      final socket = await _dial(address, headers);
       if (!isRunning) {
         await socket.close();
         return;
@@ -104,7 +134,7 @@ class WebSocketClient implements ConnectionInterface {
         _handleDisconnected();
       }
 
-      socket.listen(
+      socket.messages.listen(
         (dynamic message) {
           dynamic decoded;
           try {

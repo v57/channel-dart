@@ -106,12 +106,28 @@ extension ChannelClient<State> on Channel<State> {
       ),
     };
 
+    if (resolvedAddress.startsWith('quic://')) {
+      throw ArgumentError.value(
+        address,
+        'address',
+        "quic:// needs connectQuic from 'package:channel_dart/quic.dart'",
+      );
+    }
+
     final ws = WebSocketClient(
       resolvedAddress,
       headers: clientOptions.headers,
       jsonEngine: clientOptions.jsonEngine,
     );
+    return connectClient(ws, options: clientOptions);
+  }
 
+  /// Runs this channel's client side over [ws], a client made with its own dialer (`connectQuic` uses it).
+  ClientSender<State> connectClient(
+    WebSocketClient ws, {
+    ClientOptions<State>? options,
+  }) {
+    final clientOptions = options ?? ClientOptions<State>();
     final topics = <String>{};
     final sender = makeSender<State>(this, ws);
     final state = clientOptions.state ?? defaultStateValue<State>();

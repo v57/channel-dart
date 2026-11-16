@@ -3,6 +3,10 @@ import 'dart:convert';
 import 'dart:io';
 
 class TsServerFixture {
+  /// The fixture serves WebSocket on TCP and QUIC on UDP, both on [port] (CHANNEL_TEST_PORT).
+  TsServerFixture({this.port = 2049});
+
+  final int port;
   Process? _process;
   final List<String> _stdout = <String>[];
   final List<String> _stderr = <String>[];
@@ -20,6 +24,7 @@ class TsServerFixture {
       'bun',
       <String>['tests/server.ts'],
       workingDirectory: channelDir.path,
+      environment: <String, String>{'CHANNEL_TEST_PORT': '$port'},
       runInShell: true,
     );
 
@@ -75,7 +80,7 @@ class TsServerFixture {
       }
 
       try {
-        final socket = await WebSocket.connect('ws://127.0.0.1:2049');
+        final socket = await WebSocket.connect('ws://127.0.0.1:$port');
         await socket.close();
         return;
       } catch (error) {
@@ -85,7 +90,7 @@ class TsServerFixture {
     }
 
     throw StateError(
-      'Timeout waiting for TypeScript fixture on 127.0.0.1:2049. Last error: $lastError\n'
+      'Timeout waiting for TypeScript fixture on 127.0.0.1:$port. Last error: $lastError\n'
       'stdout:\n${_stdout.join('\n')}\n\n'
       'stderr:\n${_stderr.join('\n')}',
     );
